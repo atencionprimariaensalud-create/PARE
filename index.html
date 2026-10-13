@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PARE · Tablero de Indicadores</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-800 antialiased">
+
+  <!-- Header -->
+  <header class="bg-gradient-to-r from-indigo-700 via-indigo-600 to-violet-600 text-white shadow-lg">
+    <div class="max-w-6xl mx-auto px-5 py-6 flex items-center gap-4">
+      <div class="h-12 w-12 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center text-2xl">🤰</div>
+      <div class="flex-1">
+        <h1 class="text-2xl sm:text-3xl font-bold tracking-tight">Tablero de Indicadores · PARE.MM</h1>
+        <p class="text-indigo-100 text-sm mt-0.5">ESE Norte 3 · Matriz de seguimiento de mortalidad materna · enero – octubre 2026</p>
+      </div>
+      <div class="hidden sm:flex flex-col items-end text-right text-xs text-indigo-100">
+        <span>Corte: <b class="text-white">Octubre parcial</b></span>
+        <span id="stamp" class="opacity-80"></span>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-5 py-7 space-y-7">
+
+    <!-- Filtros -->
+    <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-5">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Indicador</label>
+          <select id="fIndicador" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"></select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Mes</label>
+          <select id="fMes" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"></select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Ámbito</label>
+          <select id="fAmbito" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+            <option value="total">Total (sin filtro EBS)</option>
+            <option value="ebs">Solo EBS (equipos básicos)</option>
+            <option value="intramural">Intramural (Total − EBS)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Municipio</label>
+          <select id="fMunicipio" class="w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+            <option value="all">Todos los municipios</option>
+            <option value="PUERTO TEJADA">Puerto Tejada</option>
+            <option value="PADILLA">Padilla</option>
+            <option value="VILLA RICA">Villa Rica</option>
+          </select>
+        </div>
+      </div>
+      <div class="mt-4 flex items-center justify-between flex-wrap gap-3">
+        <p class="text-xs text-slate-400">Puedes combinar las 4 casillas. Clic en una tarjeta también filtra por indicador.</p>
+        <button id="btnReset" class="rounded-xl bg-slate-900 text-white text-sm font-semibold px-5 py-2.5 hover:bg-slate-700 transition">Limpiar filtros</button>
+      </div>
+
+      <!-- Resultado -->
+      <div class="mt-5 rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-900 text-white p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+        <div class="flex-1">
+          <p class="text-xs uppercase tracking-widest text-indigo-200">Resultado</p>
+          <p id="resLabel" class="text-lg font-semibold mt-1">Todos los indicadores · Todos los meses</p>
+          <p id="resSub" class="text-indigo-300 text-xs mt-0.5"></p>
+        </div>
+        <div class="flex items-baseline gap-3">
+          <span id="resValue" class="text-5xl font-extrabold tabular-nums">0</span>
+          <span id="resUnit" class="text-indigo-200 text-sm">registros</span>
+        </div>
+      </div>
+
+      <!-- Comparativo Total / EBS / Intramural -->
+      <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3" id="ambitoTiles"></div>
+    </section>
+
+    <!-- KPI cards -->
+    <section>
+      <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500 mb-3">Indicadores <span class="font-normal normal-case text-slate-400">(clic para filtrar · totales según ámbito/municipio)</span></h2>
+      <div id="cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4"></div>
+    </section>
+
+    <!-- Chart + info -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-5">
+        <h2 id="chartTitle" class="font-bold text-slate-700 mb-3">Comparativo mensual</h2>
+        <div class="relative h-72"><canvas id="chart"></canvas></div>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-5">
+        <h2 class="font-bold text-slate-700 mb-3">Distribución por indicador</h2>
+        <div class="relative h-72"><canvas id="pie"></canvas></div>
+      </div>
+    </section>
+
+    <!-- Tabla detalle mensual -->
+    <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-5 overflow-x-auto">
+      <h2 class="font-bold text-slate-700 mb-3">Detalle por mes</h2>
+      <table class="w-full text-sm border-separate border-spacing-0">
+        <thead id="thead" class="text-left text-slate-500"></thead>
+        <tbody id="tbody"></tbody>
+        <tfoot id="tfoot"></tfoot>
+      </table>
+      <p class="text-xs text-slate-400 mt-3">
+        * Octubre es un corte parcial. Las filas resaltadas corresponden a los filtros activos.
+      </p>
+    </section>
+
+    <!-- Tabla por municipio -->
+    <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-5 overflow-x-auto">
+      <h2 class="font-bold text-slate-700 mb-3">Desglose por municipio</h2>
+      <table class="w-full text-sm border-separate border-spacing-0">
+        <thead id="munHead" class="text-left text-slate-500"></thead>
+        <tbody id="munBody"></tbody>
+        <tfoot id="munFoot"></tfoot>
+      </table>
+      <p class="text-xs text-slate-400 mt-3">Valores según el ámbito seleccionado, para los meses e indicadores filtrados.</p>
+    </section>
+
+    <!-- Parametrización -->
+    <section class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 p-5">
+      <h2 class="font-bold text-slate-700">¿Cómo se calcula cada indicador?</h2>
+      <p class="text-sm text-slate-500 mt-1 mb-4">
+        Cada indicador se obtiene exportando un reporte de <b>Plenus</b> (sistema hospitalario de la ESE),
+        aplicando un filtro por <b>CUPS / PyM</b>, y luego los filtros de <b>convenios EBS</b> y
+        (opcional) <b>municipio</b>. Despliega cada indicador para ver los pasos.
+      </p>
+
+      <div class="overflow-x-auto mb-5">
+        <table class="w-full text-sm border-separate border-spacing-0">
+          <thead id="paramHead"></thead>
+          <tbody id="paramBody"></tbody>
+        </table>
+      </div>
+
+      <div id="paramAccordion" class="space-y-3"></div>
+
+      <div class="mt-5 rounded-xl bg-amber-50 ring-1 ring-amber-200 p-4 text-sm text-amber-900">
+        <p class="font-semibold mb-1">Notas</p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li><b>pym</b> en el 001 = <b>programapyp</b> en el 201 (el programa de la cita).</li>
+          <li>Los indicadores K / L / M cuentan <b>citas agendadas + atendidas</b> (por <b>fechacita</b>).</li>
+          <li><b>[EBS]</b>: filtro por “equipos básicos” = unión de <i>convenio/convenionombre</i> que contenga “equipos básicos” o cédula del profesional dentro de la lista EBS (61 del Excel de recursos).</li>
+          <li><b>Intramural</b> = Total − EBS (atención institucional, complemento de los equipos básicos).</li>
+          <li><b>Municipio</b>: solo Puerto Tejada, Padilla y Villa Rica. (<b>Gestantes captadas</b> se registra únicamente en Puerto Tejada.)</li>
+          <li><b>Periodo</b>: se corta por la fecha de la cita/atención del archivo del mes (se pasa el mes completo y se extrae el periodo pedido).</li>
+        </ul>
+      </div>
+    </section>
+
+    <footer class="text-center text-xs text-slate-400 pb-4">
+      Tablero construido desde <span class="font-medium">informe_PAREM_MM_2026.xlsx</span> ·
+      Matriz PARE.MM — ESE Norte 3.
+    </footer>
+  </main>
+
+<script>
+/* ============================================================
+   MESES
+   ============================================================ */
+const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre"];
+
+/* ============================================================
+   INDICADORES (metadatos)
+   ============================================================ */
+const IND = {
+  pruebas:  { code:"I", nombre:"Número de pruebas de embarazo",          corto:"Pruebas de embarazo", color:"#e11d48", light:"#fecdd3" },
+  gestantes:{ code:"J", nombre:"Número de gestantes captadas",           corto:"Gestantes captadas",  color:"#0284c7", light:"#bae6fd" },
+  prenatal: { code:"K", nombre:"Número de controles prenatales",         corto:"Control prenatal",    color:"#4f46e5", light:"#c7d2fe" },
+  puerperio:{ code:"L", nombre:"Número de controles de puerperio",       corto:"Puerperio",           color:"#d97706", light:"#fde68a" },
+  rn:       { code:"M", nombre:"Número de controles de recién nacido",   corto:"Recién nacido",       color:"#059669", light:"#a7f3d0" },
+};
+const ORDEN = ["pruebas","gestantes","prenatal","puerperio","rn"];
+
+/* ============================================================
+   DATOS  (enero..octubre)  — edita aquí si actualizas el Excel
+   ============================================================ */
+const DATA = {
+  total: {
+    pruebas:  [ 91,114,139,109,112,111,113,130,115, 17],
+    gestantes:[105,138,186,184,194,211,222,242,241, 59],
+    prenatal: [297,356,332,355,402,391,429,388,424,110],
+    puerperio:[ 44, 43, 37, 39, 29, 44, 52, 39, 55, 13],
+    rn:       [ 25, 27, 30, 29, 16, 30, 31, 28, 41, 12],
+  },
+  ebs: {
+    pruebas:  [  3,  1,  0,  1,  1,  1,  4,  2,  0,  0],
+    gestantes:[ 19, 34, 51, 23, 47, 41, 70, 99,100, 10],
+    prenatal: [ 94, 41,  5, 10, 10, 10, 11,  8,  7,  1],
+    puerperio:[ 15,  3,  6,  1,  1,  1,  0,  0,  1,  0],
+    rn:       [  9,  0,  3,  1,  0,  0,  0,  0,  0,  0],
+  },
+  munTotal: {
+    "PUERTO TEJADA": {
+      pruebas:  [ 77, 86,114, 92, 92, 92, 85, 99, 83, 10],
+      gestantes:[105,138,186,184,194,211,222,242,241, 59],
+      prenatal: [199,245,240,240,288,269,277,263,309, 81],
+      puerperio:[ 26, 25, 22, 28, 25, 32, 37, 24, 38,  7],
+      rn:       [ 13, 16, 12, 19, 12, 21, 22, 11, 23,  7],
+    },
+    "PADILLA": {
+      pruebas:  [  5, 11,  9,  8,  7,  6,  8, 11, 12,  0],
+      gestantes:[  0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+      prenatal: [ 43, 37, 42, 48, 51, 50, 75, 60, 42,  9],
+      puerperio:[  6,  8,  3,  4,  3,  6,  8,  9, 11,  0],
+      rn:       [  3,  7,  3,  4,  2,  4,  3, 12, 12,  0],
+    },
+    "VILLA RICA": {
+      pruebas:  [  9, 17, 16,  9, 13, 13, 20, 20, 20,  7],
+      gestantes:[  0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+      prenatal: [ 55, 74, 50, 67, 63, 72, 77, 65, 73, 20],
+      puerperio:[ 12, 10, 12,  7,  1,  6,  7,  6,  6,  6],
+      rn:       [  9,  4, 15,  6,  2,  5,  6,  5,  6,  5],
+    },
+  },
+  munEbs: {
+    "PUERTO TEJADA": {
+      pruebas:  [  2,  1,  0,  1,  0,  0,  3,  0,  0,  0],
+      gestantes:[ 19, 34, 51, 23, 47, 41, 70, 99,100, 10],
+      prenatal: [ 47, 12,  3,  4,  7,  6,  8,  3,  4,  1],
+      puerperio:[  3,  1,  5,  0,  1,  0,  0,  0,  1,  0],
+      rn:       [  1,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+    },
+    "PADILLA": {
+      pruebas:  [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+      gestantes:[  0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+      prenatal: [  3,  1,  0,  1,  0,  1,  3,  4,  2,  0],
+      puerperio:[  0,  0,  0,  1,  0,  0,  0,  0,  0,  0],
+      rn:       [  1,  0,  0,  1,  0,  0,  0,  0,  0,  0],
+    },
+    "VILLA RICA": {
+      pruebas:  [  1,  0,  0,  0,  1,  1,  1,  2,  0,  0],
+      gestantes:[  0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+      prenatal: [ 44, 28,  2,  5,  3,  3,  0,  1,  1,  0],
+      puerperio:[ 12,  2,  1,  0,  0,  1,  0,  0,  0,  0],
+      rn:       [  7,  0,  3,  0,  0,  0,  0,  0,  0,  0],
+    },
+  },
+};
+
+/* ============================================================
+   PARAMETRIZACIÓN — cómo se calcula cada indicador
+   ============================================================ */
+const PARAMS = [
+  {
+    key:"pruebas", code:"I", color:"#e11d48", nombre:"Pruebas de embarazo",
+    fuente:"reporte201 (RIPS)", criterio:"cupscodigo = 904508", filtros:["Convenios EBS","Municipio"],
+    pasos:[
+      "Exportar el reporte 201 de Plenus (sistema hospitalario de la ESE).",
+      "Filtrar por el CUPS <b>904508</b>.",
+      "Filtrar <b>primero los convenios de Equipos Básicos de Salud (EBS)</b>.",
+      "(Opcional) filtrar por <b>municipio</b>: Puerto Tejada, Padilla o Villa Rica."
+    ],
+    nota:"El periodo se corta por la fecha de la cita/atención del archivo del mes (se pasa el mes completo y se extrae el periodo pedido)."
+  },
+  {
+    key:"gestantes", code:"J", color:"#0284c7", nombre:"Gestantes captadas",
+    fuente:"Por definir", criterio:"—", filtros:["—"],
+    pasos:["Fuente y criterio por definir. El dato ya está cargado en el tablero (494 gestantes EBS; 1.782 total)."]
+  },
+  {
+    key:"prenatal", code:"K", color:"#4f46e5", nombre:"Control prenatal",
+    fuente:"reporte001 (agenda)", criterio:"codigocups ∈ {890201, 890301} · pym = PRENATAL",
+    filtros:["Municipio","Convenios EBS","fechacita"],
+    pasos:[
+      "Exportar el reporte 001 (agenda) de Plenus.",
+      "Filtrar por <b>codigocups 890201</b> o <b>890301</b>.",
+      "Filtrar <b>pym = PRENATAL</b>.",
+      "Filtrar los <b>convenios de Equipos Básicos de Salud (EBS)</b>.",
+      "(Opcional) filtrar por <b>municipio</b>: Puerto Tejada, Padilla o Villa Rica."
+    ],
+    nota:"Cuenta citas agendadas + atendidas por <b>fechacita</b>. pym (001) = programapyp (201)."
+  },
+  {
+    key:"puerperio", code:"L", color:"#d97706", nombre:"Puerperio",
+    fuente:"reporte001 (agenda)", criterio:"codigocups ∈ {890201, 890301} · pym = POSPARTO",
+    filtros:["Municipio","Convenios EBS","fechacita"],
+    pasos:[
+      "Exportar el reporte 001 (agenda) de Plenus.",
+      "Filtrar por <b>codigocups 890201</b> o <b>890301</b>.",
+      "Filtrar <b>pym = POSPARTO</b>.",
+      "Filtrar los <b>convenios de Equipos Básicos de Salud (EBS)</b>.",
+      "(Opcional) filtrar por <b>municipio</b>: Puerto Tejada, Padilla o Villa Rica."
+    ],
+    nota:"Cuenta citas agendadas + atendidas por <b>fechacita</b>. pym (001) = programapyp (201)."
+  },
+  {
+    key:"rn", code:"M", color:"#059669", nombre:"Recién nacido",
+    fuente:"reporte001 (agenda)", criterio:"codigocups ∈ {890201, 890301} · pym = RECIÉN NACIDO",
+    filtros:["Municipio","Convenios EBS","fechacita"],
+    pasos:[
+      "Exportar el reporte 001 (agenda) de Plenus.",
+      "Filtrar por <b>codigocups 890201</b> o <b>890301</b>.",
+      "Filtrar <b>pym = RECIÉN NACIDO</b>.",
+      "Filtrar los <b>convenios de Equipos Básicos de Salud (EBS)</b>.",
+      "(Opcional) filtrar por <b>municipio</b>: Puerto Tejada, Padilla o Villa Rica."
+    ],
+    nota:"Cuenta citas agendadas + atendidas por <b>fechacita</b>. pym (001) = programapyp (201)."
+  }
+];
+
+/* ============================================================
+   Lógica de filtros
+   ============================================================ */
+const $ = (id) => document.getElementById(id);
+const MUNICIPIOS = ["PUERTO TEJADA","PADILLA","VILLA RICA"];
+
+let selInd = "all";        // "all" o key
+let selMes = "all";        // "all" o índice
+let selAmbito = "total";   // "total" | "ebs" | "intramural"
+let selMun = "all";        // "all" o nombre municipio
+
+const fnum = (n)=> n===null||n===undefined ? "—" : Number(n).toLocaleString("es-CO");
+const sumArr = (a)=> a.reduce((x,y)=>x+y,0);
+const sub = (a,b)=> a.map((v,i)=>v-b[i]);
+
+/* Devuelve el array mensual (10 valores) para un indicador dadas las selecciones. */
+function series(key, ambito, mun){
+  if (mun === "all"){
+    const t = DATA.total[key], e = DATA.ebs[key];
+    if (ambito === "total") return t.slice();
+    if (ambito === "ebs")   return e.slice();
+    return sub(t,e); // intramural
+  }
+  const t = DATA.munTotal[mun][key], e = DATA.munEbs[mun][key];
+  if (ambito === "total") return t.slice();
+  if (ambito === "ebs")   return e.slice();
+  return sub(t,e);
+}
+
+function selectedKeys(){ return selInd === "all" ? ORDEN : [selInd]; }
+function selectedMonths(){ return selMes === "all" ? MESES.map((_,i)=>i) : [Number(selMes)]; }
+
+function ambitoLabel(a){ return a==="total" ? "Total (sin EBS)" : a==="ebs" ? "Solo EBS" : "Intramural"; }
+function munLabel(m){ return m==="all" ? "Todos los municipios" : (m.charAt(0)+m.slice(1).toLowerCase()).replace(/(^|\s)\S/g,s=>s.toUpperCase()); }
+
+/* ---------- Resultado ---------- */
+function renderResult(){
+  const keys = selectedKeys(), meses = selectedMonths();
+  let total = 0;
+  keys.forEach(k=>{ const s = series(k, selAmbito, selMun); meses.forEach(mi=> total += s[mi]); });
+
+  const indTxt = selInd==="all" ? "Todos los indicadores" : `${IND[selInd].code} – ${IND[selInd].corto}`;
+  const mesTxt = selMes==="all" ? "Todos los meses" : MESES[Number(selMes)];
+  $("resLabel").textContent = `${indTxt} · ${mesTxt}`;
+  $("resSub").textContent = `Ámbito: ${ambitoLabel(selAmbito)} · ${munLabel(selMun)}`;
+  $("resValue").textContent = fnum(total);
+  $("resUnit").textContent = "registros";
+}
+
+/* ---------- Tiles Total / EBS / Intramural ---------- */
+function renderAmbTiles(){
+  const keys = selectedKeys(), meses = selectedMonths();
+  const calc = (amb)=> keys.reduce((acc,k)=> acc + meses.reduce((s,mi)=> s + series(k,amb,selMun)[mi],0), 0);
+  const t = calc("total"), e = calc("ebs"), i = calc("intramural");
+  const tile = (label, val, color, bg) => `
+    <button data-amb="${label.key}" class="text-left rounded-xl ring-1 ring-slate-200 p-3.5 bg-white hover:shadow-sm transition ${selAmbito===label.key?'ring-2 ring-indigo-500 bg-indigo-50':''}">
+      <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">${label.name}</p>
+      <p class="text-2xl font-extrabold tabular-nums mt-1" style="color:${color}">${fnum(val)}</p>
+      <p class="text-[11px] text-slate-400">${label.desc}</p>
+    </button>`;
+  $("ambitoTiles").innerHTML =
+    tile({key:"total", name:"Total", desc:"Todo, sin filtro EBS"}, t, "#0f172a") +
+    tile({key:"ebs", name:"EBS", desc:"Solo equipos básicos"}, e, "#4f46e5") +
+    tile({key:"intramural", name:"Intramural", desc:"Total − EBS"}, i, "#0d9488");
+  $("ambitoTiles").querySelectorAll("[data-amb]").forEach(b=>{
+    b.addEventListener("click", ()=>{ selAmbito = b.dataset.amb; $("fAmbito").value = selAmbito; render(); });
+  });
+}
+
+/* ---------- Cards ---------- */
+function renderCards(){
+  const meses = selectedMonths();
+  $("cards").innerHTML = ORDEN.map(k=>{
+    const m = IND[k];
+    const s = series(k, selAmbito, selMun);
+    const tot = meses.reduce((a,mi)=>a+s[mi],0);
+    const active = selInd === k;
+    return `
+    <button data-key="${k}" class="card text-left rounded-2xl bg-white ring-1 ring-slate-200 shadow-sm p-4 transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none ${active?'ring-2 ring-indigo-500 bg-indigo-50':''}">
+      <div class="flex items-center justify-between">
+        <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-white text-sm font-bold" style="background:${m.color}">${m.code}</span>
+        <span class="h-2.5 w-2.5 rounded-full" style="background:${m.color}"></span>
+      </div>
+      <p class="mt-3 text-3xl font-extrabold tabular-nums" style="color:${m.color}">${fnum(tot)}</p>
+      <p class="text-xs text-slate-500 mt-1 leading-snug">${m.corto}</p>
+    </button>`;
+  }).join("");
+  $("cards").querySelectorAll(".card").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      selInd = (selInd === b.dataset.key) ? "all" : b.dataset.key;
+      $("fIndicador").value = selInd; render();
+    });
+  });
+}
+
+/* ---------- Tabla por mes ---------- */
+function renderTable(){
+  const keys = selectedKeys(), meses = selectedMonths();
+  $("thead").innerHTML = `<tr><th class="pb-2 pr-4 font-semibold">Mes</th>` +
+    keys.map(k=>`<th class="pb-2 px-3 font-semibold text-right whitespace-nowrap">
+      <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full" style="background:${IND[k].color}"></span>${IND[k].code} – ${IND[k].corto}</span></th>`).join("") + `</tr>`;
+
+  $("tbody").innerHTML = meses.map(mi=>{
+    const cells = keys.map(k=>`<td class="py-2 px-3 text-right tabular-nums font-medium">${fnum(series(k,selAmbito,selMun)[mi])}</td>`).join("");
+    return `<tr class="border-t border-slate-100 hover:bg-slate-50">
+      <td class="py-2 pr-4 font-semibold text-slate-700">${MESES[mi]}${mi===9?' <span class="text-amber-600">*</span>':''}</td>${cells}</tr>`;
+  }).join("");
+
+  const totals = keys.map(k=>{ const s=series(k,selAmbito,selMun); const t=meses.reduce((a,mi)=>a+s[mi],0); return `<td class="py-2.5 px-3 text-right tabular-nums font-extrabold">${fnum(t)}</td>`; }).join("");
+  $("tfoot").innerHTML = `<tr class="border-t-2 border-slate-200 bg-slate-50"><td class="py-2.5 pr-4 font-bold text-slate-700">TOTAL</td>${totals}</tr>`;
+}
+
+/* ---------- Tabla por municipio ---------- */
+function renderMunTable(){
+  const keys = selectedKeys(), meses = selectedMonths();
+  $("munHead").innerHTML = `<tr><th class="pb-2 pr-4 font-semibold">Municipio</th>` +
+    keys.map(k=>`<th class="pb-2 px-3 font-semibold text-right whitespace-nowrap">
+      <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full" style="background:${IND[k].color}"></span>${IND[k].code} – ${IND[k].corto}</span></th>`).join("") + `</tr>`;
+
+  const rows = MUNICIPIOS.map(mun=>{
+    const cells = keys.map(k=>{ const s=series(k, selAmbito, mun); const t=meses.reduce((a,mi)=>a+s[mi],0); return `<td class="py-2 px-3 text-right tabular-nums font-medium">${fnum(t)}</td>`; }).join("");
+    const hl = (selMun===mun) ? "bg-indigo-50" : "";
+    return `<tr class="border-t border-slate-100 hover:bg-slate-50 ${hl}">
+      <td class="py-2 pr-4 font-semibold text-slate-700">${mun.charAt(0)+mun.slice(1).toLowerCase().replace(/(^|\s)\S/g,s=>s.toUpperCase())}</td>${cells}</tr>`;
+  }).join("");
+  $("munBody").innerHTML = rows;
+
+  const totals = keys.map(k=>{ const t = MUNICIPIOS.reduce((acc,mun)=> acc + meses.reduce((a,mi)=>a+series(k,selAmbito,mun)[mi],0),0); return `<td class="py-2.5 px-3 text-right tabular-nums font-extrabold">${fnum(t)}</td>`; }).join("");
+  $("munFoot").innerHTML = `<tr class="border-t-2 border-slate-200 bg-slate-50"><td class="py-2.5 pr-4 font-bold text-slate-700">TOTAL</td>${totals}</tr>`;
+}
+
+/* ---------- Charts ---------- */
+let chart, pie;
+function renderCharts(){
+  const keys = selectedKeys(), meses = selectedMonths();
+  const labels = meses.map(mi=>MESES[mi]);
+  $("chartTitle").textContent = keys.length===1 ? `Evolución mensual · ${IND[keys[0]].corto}` : "Comparativo mensual";
+
+  const datasets = keys.map(k=>({
+    label: IND[k].corto,
+    data: meses.map(mi=>series(k,selAmbito,selMun)[mi]),
+    backgroundColor: IND[k].color,
+    borderRadius: 5,
+  }));
+  if (chart) chart.destroy();
+  chart = new Chart($("chart"), { type:"bar",
+    data:{ labels, datasets },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display: keys.length>1 } },
+      scales:{ y:{ beginAtZero:true, grid:{ color:"#eef2f7" } }, x:{ grid:{ display:false } } } } });
+
+  const pieVals = ORDEN.map(k=>{ const s=series(k,selAmbito,selMun); return meses.reduce((a,mi)=>a+s[mi],0); });
+  if (pie) pie.destroy();
+  pie = new Chart($("pie"), { type:"doughnut",
+    data:{ labels: ORDEN.map(k=>IND[k].corto), datasets:[{ data: pieVals, backgroundColor: ORDEN.map(k=>IND[k].color), borderWidth:0 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:"bottom", labels:{ boxWidth:12, font:{ size:11 } } } } } });
+}
+
+/* ---------- Parametrización ---------- */
+function renderParams(){
+  $("paramHead").innerHTML = `<tr class="text-left text-slate-500">
+      <th class="pb-2 pr-3 font-semibold">#</th>
+      <th class="pb-2 pr-3 font-semibold">Indicador</th>
+      <th class="pb-2 pr-3 font-semibold">Archivo fuente</th>
+      <th class="pb-2 pr-3 font-semibold">Columna / criterio</th>
+      <th class="pb-2 font-semibold">Filtros</th></tr>`;
+  $("paramBody").innerHTML = PARAMS.map(p=>`
+    <tr class="border-t border-slate-100 align-top">
+      <td class="py-2.5 pr-3"><span class="inline-flex h-7 w-7 items-center justify-center rounded-lg text-white text-xs font-bold" style="background:${p.color}">${p.code}</span></td>
+      <td class="py-2.5 pr-3 font-semibold text-slate-700 whitespace-nowrap">${p.nombre}</td>
+      <td class="py-2.5 pr-3 text-slate-600 whitespace-nowrap">${p.fuente}</td>
+      <td class="py-2.5 pr-3"><code class="text-xs bg-slate-100 rounded px-1.5 py-0.5 whitespace-nowrap">${p.criterio}</code></td>
+      <td class="py-2.5 text-slate-600 text-xs">${p.filtros.join(' → ')}</td>
+    </tr>`).join("");
+
+  $("paramAccordion").innerHTML = PARAMS.map(p=>`
+    <details class="group rounded-xl ring-1 ring-slate-200 overflow-hidden bg-white">
+      <summary class="cursor-pointer list-none flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 transition">
+        <span class="inline-flex h-7 w-7 items-center justify-center rounded-lg text-white text-xs font-bold shrink-0" style="background:${p.color}">${p.code}</span>
+        <span class="font-semibold text-slate-700 flex-1">${p.nombre}</span>
+        <span class="text-slate-400 transition group-open:rotate-180">▾</span>
+      </summary>
+      <div class="px-4 py-4 text-sm text-slate-600">
+        <p class="text-[11px] uppercase tracking-wide text-slate-400 mb-2">Pasos para obtenerlo</p>
+        <ol class="space-y-2">
+          ${p.pasos.map((s,i)=>`<li class="flex gap-2.5"><span class="shrink-0 inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-bold">${i+1}</span><span class="leading-snug">${s}</span></li>`).join("")}
+        </ol>
+        ${p.nota ? `<p class="mt-3 text-xs text-slate-500 border-l-2 border-slate-200 pl-3">${p.nota}</p>` : ``}
+      </div>
+    </details>`).join("");
+}
+
+function render(){
+  renderResult(); renderAmbTiles(); renderCards(); renderTable(); renderMunTable(); renderCharts();
+}
+
+/* ---------- Eventos ---------- */
+$("fIndicador").addEventListener("change", e=>{ selInd = e.target.value; render(); });
+$("fMes").addEventListener("change", e=>{ selMes = e.target.value; render(); });
+$("fAmbito").addEventListener("change", e=>{ selAmbito = e.target.value; render(); });
+$("fMunicipio").addEventListener("change", e=>{ selMun = e.target.value; render(); });
+$("btnReset").addEventListener("click", ()=>{
+  selInd="all"; selMes="all"; selAmbito="total"; selMun="all";
+  $("fIndicador").value="all"; $("fMes").value="all"; $("fAmbito").value="total"; $("fMunicipio").value="all";
+  render();
+});
+
+/* ---------- Init ---------- */
+$("fIndicador").innerHTML = `<option value="all">Todos los indicadores</option>` +
+  ORDEN.map(k=>`<option value="${k}">${IND[k].code} – ${IND[k].nombre}</option>`).join("");
+$("fMes").innerHTML = `<option value="all">Todos los meses</option>` +
+  MESES.map((m,i)=>`<option value="${i}">${m}</option>`).join("");
+$("stamp").textContent = new Date().toLocaleDateString("es-CO",{day:"2-digit",month:"short",year:"numeric"});
+
+render();
+renderParams();
+</script>
+</body>
+</html>
